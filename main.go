@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -23,19 +22,13 @@ func init() {
 		Password: "",
 		DB:       0,
 	})
+
+	initLogger()
 }
 
 func main() {
-	err := rdb.Set(ctx, "wc", "niubi", 0).Err()
-	if err != nil {
-		panic(err)
-	}
-	v, err := rdb.Get(ctx, "wc").Result()
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Println(v)
+	router := RouterDefault()
+	router.Run(":50001")
 }
 
 // RouterDefault get default router
@@ -43,10 +36,14 @@ func RouterDefault() *gin.Engine {
 	router := gin.Default()
 
 	v1 := router.Group("/v1")
+	v1.Use(logToFile)
 
 	authGroup := v1.Group("/auth")
 	{
 		authGroup.POST("/", login)
+		authGroup.GET("/", func(c *gin.Context) {
+			c.Status(200)
+		})
 	}
 
 	// orderGroup := v1.Group("/order")
@@ -65,11 +62,12 @@ func checkAuth(c *gin.Context) {
 		c.String(http.StatusUnauthorized, "Unauthorized")
 	}
 
-	_, err = rdb.Get(ctx, userToken.Value+"_user").Result()
+	_, err = rdb.Get(ctx, userTokenRDB(userToken.Value)).Result()
+
 	//无效token
 	if err != nil {
 		c.String(http.StatusUnauthorized, "Unauthorized")
 	}
 	//重置token超时
-	rdb.Expire(ctx, userToken.Value+"_user", time.Duration(expireUserAuth))
+	rdb.Expire(ctx, userTokenRDB(userToken.Value), time.Duration(expireUserAuth))
 }

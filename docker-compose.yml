@@ -3,11 +3,11 @@ version: "3"
 services: 
   redis:
     image: redis
-    container_name: redis
+    container_name: ganfan_redis
     restart: always
     ports: 
       - 6379:6379
     volumes: 
-      - /home/wangchi/docker/redis/data:/data
+      - ~/docker/redis/data:/data
     command: -- appendonly yes
     tty: true
