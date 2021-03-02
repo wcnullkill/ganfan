@@ -3,17 +3,25 @@ package main
 import "fmt"
 
 func userTokenRDB(token string) string {
-	return fmt.Sprintf("token_user_%s", token)
+	str := fmt.Sprintf("token_user_%s", token)
+	logger.Info(str)
+	return str
 }
 
-func userRDB() string {
-	return fmt.Sprintf("user")
+func userRDB(username string) string {
+	str := fmt.Sprintf("user_%s", username)
+	logger.Info(str)
+	return str
 }
 
 func loginRDB(username string) string {
-	return fmt.Sprintf("user_login_%s", username)
+	str := fmt.Sprintf("user_login_%s", username)
+	logger.Info(str)
+	return str
 }
 
 func logoutRDB(username string) string {
-	return fmt.Sprintf("user_logout_%s", username)
+	str := fmt.Sprintf("user_logout_%s", username)
+	logger.Info(str)
+	return str
 }

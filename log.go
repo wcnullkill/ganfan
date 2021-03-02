@@ -71,10 +71,8 @@ func createLoggerFile(path string) (f *os.File, err error) {
 		if err != nil {
 			panic(err)
 		}
-
 	} else {
 		f, err = os.OpenFile(path, os.O_RDWR|os.O_APPEND, 0660)
-
 	}
 	return
 }

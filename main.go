@@ -2,11 +2,11 @@ package main
 
 import (
 	"context"
-	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
+	"github.com/mattn/go-colorable"
 )
 
 const (
@@ -18,7 +18,7 @@ var ctx = context.Background()
 
 func init() {
 	rdb = redis.NewClient(&redis.Options{
-		Addr:     "10.20.12.80:6379",
+		Addr:     "localhost:6379",
 		Password: "",
 		DB:       0,
 	})
@@ -33,6 +33,10 @@ func main() {
 
 // RouterDefault get default router
 func RouterDefault() *gin.Engine {
+	// 启用gin的日志输出带颜色
+	gin.ForceConsoleColor()
+	// 替换默认Writer（关键步骤）
+	gin.DefaultWriter = colorable.NewColorableStdout()
 	router := gin.Default()
 
 	v1 := router.Group("/v1")
@@ -40,34 +44,17 @@ func RouterDefault() *gin.Engine {
 
 	authGroup := v1.Group("/auth")
 	{
-		authGroup.POST("/", login)
-		authGroup.GET("/", func(c *gin.Context) {
-			c.Status(200)
-		})
+		authGroup.POST("", login)
+		authGroup.Use(checkAuth)
+		authGroup.DELETE("", logout)
 	}
 
-	// orderGroup := v1.Group("/order")
-	// {
-	// 	orderGroup.Post("/")
-	// }
+	orderGroup := v1.Group("/order")
+	{
+		orderGroup.Use(checkAuth)
+		orderGroup.POST("", submitOrder)
+		orderGroup.GET("", queryOrder)
+	}
 
 	return router
-}
-
-func checkAuth(c *gin.Context) {
-	userToken, err := c.Request.Cookie("UserToken")
-
-	//未找到cookie
-	if err == http.ErrNoCookie {
-		c.String(http.StatusUnauthorized, "Unauthorized")
-	}
-
-	_, err = rdb.Get(ctx, userTokenRDB(userToken.Value)).Result()
-
-	//无效token
-	if err != nil {
-		c.String(http.StatusUnauthorized, "Unauthorized")
-	}
-	//重置token超时
-	rdb.Expire(ctx, userTokenRDB(userToken.Value), time.Duration(expireUserAuth))
 }

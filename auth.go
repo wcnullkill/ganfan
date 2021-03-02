@@ -14,14 +14,15 @@ import (
 
 // User 用户基础信息
 type User struct {
-	NickName string `json:"nickname"`
-	UserName string `json:"username"` //全部转为小写
-	Email    string `json:"email"`
+	NickName string `json:"nickname" form:"nickname" xml:"nickname" binding:"required"`
+	//全部转为小写
+	UserName string `json:"username" form:"username" xml:"username" binding:"-"`
+	Email    string `json:"email" form:"email" xml:"email" binding:"required"`
 }
 
 // UserToken 用户基础信息+token
 type UserToken struct {
-	User
+	User  `json:"user"`
 	Token string `json:"token"`
 }
 
@@ -30,47 +31,53 @@ const emailre string = `^([\w-\.]+)@ctrchina\.cn$`
 // login 处理登录
 // 校验邮件，设置cookie usertoken
 func login(c *gin.Context) {
+	var user User
 
-	email := c.PostForm("email")
-	userName, err := getUserName(email)
+	if err := c.ShouldBind(&user); err != nil {
+		c.String(http.StatusBadRequest, "user valid")
+		return
+	}
+
+	userName, err := getUserName(user.Email)
 
 	if err != nil {
 		c.String(http.StatusBadRequest, "email error")
+		return
 	}
 
-	nickName := c.PostForm("nickname")
+	user.UserName = userName
 
-	user := &User{
-		Email:    email,
-		UserName: userName,
-		NickName: nickName,
-	}
-
-	token := makeUserToken(user)
+	token := makeUserToken(&user)
 	userJSON, _ := json.Marshal(user)
 
 	usertoken := &UserToken{
-		User:  *user,
+		User:  user,
 		Token: token,
 	}
 	userTokenJSON, _ := json.Marshal(usertoken)
 	// 存储token
-	rdb.SetEX(ctx, token+"_user", string(userJSON), time.Duration(expireUserAuth))
-	// 存储user信息
-	rdb.SetEX(ctx, userRDB(), string(userTokenJSON), 0)
-	// 存储登录信息
-	rdb.SAdd(ctx, "login_"+user.UserName, time.Now().Format("2006-01-02 15:04:05"))
+	rdb.SetEX(ctx, userTokenRDB(token), string(userJSON), time.Duration(expireUserAuth)).Result()
 
-	fmt.Printf(token)
+	// 存储user信息
+	rdb.SetEX(ctx, userRDB(userName), string(userTokenJSON), time.Duration(expireUserAuth)).Result()
+
+	// 存储登录信息
+	rdb.SAdd(ctx, loginRDB(userName), time.Now().Format("2006-01-02 15:04:05")).Result()
+
 	c.SetCookie("usertoken", token, 0, "/", "localhost", false, true)
 	c.String(http.StatusOK, "OK")
 }
 
 // logout 处理登出
 //
-func logout(token string) {
+func logout(c *gin.Context) {
+
+	cookie, _ := c.Request.Cookie("usertoken")
 	// 删除token
-	rdb.Del(ctx, token+"_user")
+	rdb.Del(ctx, userTokenRDB(cookie.Value))
+	//删除cookie中usertoken信息
+	c.SetCookie("usertoken", "", -1, "/", "localhost", false, true)
+	c.String(http.StatusOK, "OK")
 }
 
 // getUserName 根据邮箱获取username
@@ -88,5 +95,23 @@ func getUserName(email string) (username string, err error) {
 // makeCookie 根据user的UserName生成Cookie
 func makeUserToken(user *User) string {
 	b := md5.Sum([]byte(user.UserName))
-	return string(b[:])
+	return fmt.Sprintf("%x", b)
+}
+
+func checkAuth(c *gin.Context) {
+	cookie, err := c.Request.Cookie("usertoken")
+	if err != nil {
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	_, err = rdb.Get(ctx, userTokenRDB(cookie.Value)).Result()
+	//无效token
+	if err != nil {
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	//重置token超时
+	rdb.Expire(ctx, userTokenRDB(cookie.Value), time.Duration(expireUserAuth))
+	c.Next()
 }
