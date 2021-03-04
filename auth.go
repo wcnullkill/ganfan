@@ -27,6 +27,7 @@ type UserToken struct {
 }
 
 const emailre string = `^([\w-\.]+)@ctrchina\.cn$`
+const cookieMaxAge int = 30 * 24 * 60 * 60
 
 // login 处理登录
 // 校验邮件，设置cookie usertoken
@@ -64,7 +65,9 @@ func login(c *gin.Context) {
 	// 存储登录信息
 	rdb.SAdd(ctx, loginRDB(userName), time.Now().Format("2006-01-02 15:04:05")).Result()
 
-	c.SetCookie("usertoken", token, 0, "/", "localhost", false, true)
+	// cookie设置，包含token和用户名
+	c.SetCookie("usertoken", token, cookieMaxAge, "/", "", false, true)
+	c.SetCookie("user", userName, cookieMaxAge, "/", "", false, true)
 	c.String(http.StatusOK, "OK")
 }
 
@@ -99,19 +102,42 @@ func makeUserToken(user *User) string {
 }
 
 func checkAuth(c *gin.Context) {
-	cookie, err := c.Request.Cookie("usertoken")
-	if err != nil {
+	var token, user string
+	cookies := c.Request.Cookies()
+
+	for _, cookie := range cookies {
+		switch cookie.Name {
+		case "user":
+			user = cookie.Value
+		case "usertoken":
+			token = cookie.Value
+		}
+	}
+	if len(token) <= 0 || len(user) <= 0 {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
-	_, err = rdb.Get(ctx, userTokenRDB(cookie.Value)).Result()
+
+	tokenJSON, err := rdb.Get(ctx, userTokenRDB(token)).Result()
 	//无效token
 	if err != nil {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
+	var u User
+	//json 转换user失败
+	if err := json.Unmarshal([]byte(tokenJSON), &u); err != nil {
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+	//信息被修改
+	// todo  补充错误信息
+	if user != u.UserName {
+		c.AbortWithStatus(http.StatusForbidden)
+		return
+	}
 
 	//重置token超时
-	rdb.Expire(ctx, userTokenRDB(cookie.Value), time.Duration(expireUserAuth))
+	rdb.Expire(ctx, userTokenRDB(token), time.Duration(expireUserAuth))
 	c.Next()
 }

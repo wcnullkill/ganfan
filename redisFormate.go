@@ -25,3 +25,9 @@ func logoutRDB(username string) string {
 	logger.Info(str)
 	return str
 }
+
+func userDailyCodeRDB(username, date string) string {
+	str := fmt.Sprintf("user_code_%s_%s", date, username)
+	logger.Info(str)
+	return str
+}

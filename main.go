@@ -49,11 +49,11 @@ func RouterDefault() *gin.Engine {
 		authGroup.DELETE("", logout)
 	}
 
-	orderGroup := v1.Group("/order")
+	codeGroup := v1.Group("/code")
 	{
-		orderGroup.Use(checkAuth)
-		orderGroup.POST("", submitOrder)
-		orderGroup.GET("", queryOrder)
+		codeGroup.Use(checkAuth)
+		codeGroup.POST("", submitCode)
+		codeGroup.GET("", queryCode)
 	}
 
 	return router
