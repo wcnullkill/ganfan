@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 	"github.com/mattn/go-colorable"
+	"github.com/robfig/cron/v3"
 )
 
 const (
@@ -24,6 +25,11 @@ func init() {
 	})
 
 	initLogger()
+
+	// 创建抽奖定时任务
+	c := cron.New()
+	c.AddFunc(jobCronS, excute)
+	c.Start()
 }
 
 func main() {

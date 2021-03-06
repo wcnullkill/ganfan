@@ -16,9 +16,9 @@ type node struct {
 	next *node
 }
 type member struct {
-	name string
-	p    int
-	n    int
+	name  string
+	p     int // 本次中奖概率
+	email string
 }
 
 // randAsListNode 使用链表，实现抽奖功能，时间复杂度O(n^2)
@@ -42,12 +42,12 @@ func randAsListNode(members []*member) map[string]int {
 	i := 0
 	for i < size {
 		r := rand.Intn(length)
-		flag := false //本次循环是否命中
-		//执行次数未len(members)
+		flag := false // 本次循环是否命中
+		// 执行次数未为len(members)
 		for cur, pre := head.next, head; cur != nil; {
 
-			if !flag { //没有命中记录，需要继续判断
-				//判断是否在区间内
+			if !flag { // 没有命中记录，需要继续判断
+				// 判断是否在区间内
 				if cur.min <= r && cur.min+cur.p > r {
 					//命中，移除本节点
 					length -= cur.p
@@ -71,6 +71,7 @@ func randAsListNode(members []*member) map[string]int {
 }
 
 //randAsArray 反面例子，太慢了
+// TODO 二分，优化
 func randAsArray(members []*member) map[string]int {
 	rand.Seed(time.Now().Unix())
 	pool := make([]string, 0, len(members)*100)

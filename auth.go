@@ -2,7 +2,6 @@ package main
 
 import (
 	"crypto/md5"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -16,8 +15,9 @@ import (
 type User struct {
 	NickName string `json:"nickname" form:"nickname" xml:"nickname" binding:"required"`
 	//全部转为小写
-	UserName string `json:"username" form:"username" xml:"username" binding:"-"`
+	UserName string `json:"usern" form:"usern" xml:"usern" binding:"-"`
 	Email    string `json:"email" form:"email" xml:"email" binding:"required"`
+	P        int    `json:"p" xml:"p" bindiong:"-"`
 }
 
 // UserToken 用户基础信息+token
@@ -49,24 +49,16 @@ func login(c *gin.Context) {
 	user.UserName = userName
 
 	token := makeUserToken(&user)
-	userJSON, _ := json.Marshal(user)
 
-	usertoken := &UserToken{
-		User:  user,
-		Token: token,
-	}
-	userTokenJSON, _ := json.Marshal(usertoken)
-	// 存储token
-	rdb.SetEX(ctx, userTokenRDB(token), string(userJSON), time.Duration(expireUserAuth)).Result()
+	rdb.SetEX(ctx, rdbUserToken(token), "", time.Duration(expireUserAuth)).Result()
 
-	// 存储user信息
-	rdb.SetEX(ctx, userRDB(userName), string(userTokenJSON), time.Duration(expireUserAuth)).Result()
+	rdb.HMSet(ctx, rdbToken(token), "user", user.UserName, "email", user.Email, "nickname", user.NickName, "p", defaultP)
 
 	// 存储登录信息
-	rdb.SAdd(ctx, loginRDB(userName), time.Now().Format("2006-01-02 15:04:05")).Result()
+	rdb.SAdd(ctx, rdbLogin(userName), time.Now().Format("2006-01-02 15:04:05")).Result()
 
 	// cookie设置，包含token和用户名
-	c.SetCookie("usertoken", token, cookieMaxAge, "/", "", false, true)
+	c.SetCookie("token", token, cookieMaxAge, "/", "", false, true)
 	c.SetCookie("user", userName, cookieMaxAge, "/", "", false, true)
 	c.String(http.StatusOK, "OK")
 }
@@ -75,16 +67,22 @@ func login(c *gin.Context) {
 //
 func logout(c *gin.Context) {
 
-	cookie, _ := c.Request.Cookie("usertoken")
+	cookie, _ := c.Request.Cookie("token")
 	// 删除token
-	rdb.Del(ctx, userTokenRDB(cookie.Value))
+	rdb.Del(ctx, rdbUserToken(cookie.Value))
+	userName, _ := rdb.HGet(ctx, rdbToken(cookie.Value), "user").Result()
+
+	// 记录登出
+	rdb.SAdd(ctx, rdbLogout(userName), time.Now().Format("2006-01-02 15:04:05")).Result()
+
 	//删除cookie中usertoken信息
-	c.SetCookie("usertoken", "", -1, "/", "localhost", false, true)
+	c.SetCookie("token", "", -1, "/", "localhost", false, true)
+	c.SetCookie("user", "", -1, "/", "localhost", false, true)
 	c.String(http.StatusOK, "OK")
 }
 
 // getUserName 根据邮箱获取username
-func getUserName(email string) (username string, err error) {
+func getUserName(email string) (usern string, err error) {
 	emailReg := regexp.MustCompile(emailre)
 
 	if !emailReg.MatchString(email) {
@@ -109,7 +107,7 @@ func checkAuth(c *gin.Context) {
 		switch cookie.Name {
 		case "user":
 			user = cookie.Value
-		case "usertoken":
+		case "token":
 			token = cookie.Value
 		}
 	}
@@ -117,27 +115,22 @@ func checkAuth(c *gin.Context) {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
-
-	tokenJSON, err := rdb.Get(ctx, userTokenRDB(token)).Result()
+	// 验证token是否有效
+	userToken, err := rdb.Get(ctx, rdbUserToken(token)).Result()
 	//无效token
-	if err != nil {
+	if err != nil || len(userToken) == 0 {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
-	var u User
-	//json 转换user失败
-	if err := json.Unmarshal([]byte(tokenJSON), &u); err != nil {
-		c.AbortWithStatus(http.StatusInternalServerError)
-		return
-	}
+	userName, err := rdb.HGet(ctx, rdbToken(token), "usern").Result()
 	//信息被修改
 	// todo  补充错误信息
-	if user != u.UserName {
+	if user != userName {
 		c.AbortWithStatus(http.StatusForbidden)
 		return
 	}
 
 	//重置token超时
-	rdb.Expire(ctx, userTokenRDB(token), time.Duration(expireUserAuth))
+	rdb.Expire(ctx, rdbUserToken(token), time.Duration(expireUserAuth))
 	c.Next()
 }
