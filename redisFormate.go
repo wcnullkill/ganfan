@@ -16,6 +16,13 @@ func rdbToken(token string) string {
 	return str
 }
 
+// rdbTokenList set 存储所有token
+func rdbTokenList() string {
+	str := fmt.Sprint("tokenlist")
+	logger.Info(str)
+	return str
+}
+
 // rdbLogin set 个人登录记录列表
 func rdbLogin(username string) string {
 	str := fmt.Sprintf("user_login_%s", username)

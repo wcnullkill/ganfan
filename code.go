@@ -1,7 +1,9 @@
 package main
 
 import (
+	"math/rand"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -33,9 +35,10 @@ func submitCode(c *gin.Context) {
 		return
 	}
 	// 加入预约名单
-	result, _ := rdb.SAdd(ctx, rdbDailyReservation(date), token).Result()
+	result, _ := rdb.SAdd(ctx, rdbDailyReservation(date), token.Value).Result()
 	if result != 1 {
 		c.String(http.StatusForbidden, "重复预约")
+		//logger.Info(err)
 		return
 	}
 
@@ -58,9 +61,44 @@ func queryCode(c *gin.Context) {
 
 }
 
-// excute 抽奖
-func excute() {
+// execute 抽奖
+func execute() {
 
+	date := time.Now().Format("20060102")
+	logger.Infof("抽奖%s开始", date)
+	// 预约名单
+	members := getMembers()
+	// 所有预约都能加权
+	for _, member := range members {
+		p, _ := rdb.HGet(ctx, rdbToken(member.Token), "p").Result()
+		i, _ := strconv.Atoi(p)
+		// 50,75,87,93,99,99
+		i = i + (100-i)>>1
+		rdb.HSet(ctx, rdbToken(member.Token), "p", i)
+	}
+
+	// 中奖名单
+	results := make([]*member, size)
+	if len(members) <= size {
+		copy(results, members)
+	} else {
+		// 抽奖
+		m := randAsListNode(members)
+		copy(results, m)
+	}
+	rand.Seed(time.Now().Unix())
+	rand.Shuffle(len(randArray), func(i, j int) {
+		randArray[i], randArray[j] = randArray[j], randArray[i]
+	})
+
+	// 处理中奖名单
+	for index, member := range results {
+		// 将中奖token和code放入redis
+		rdb.Set(ctx, rdbDailyReservationCode(member.Token, date), randArray[index], expireCode)
+		// 重置中奖者P，并更新至user信息
+		rdb.HSet(ctx, rdbToken(member.Token), "p", defaultP)
+	}
+	logger.Infof("抽奖%s结束", date)
 }
 
 // getMembers 查询出当天预约名单
@@ -73,9 +111,12 @@ func getMembers() []*member {
 	for _, token := range tokens {
 		results, _ := rdb.HMGet(ctx, rdbToken(token), "username", "email", "p").Result()
 		members = append(members, &member{
-			name:  results[0].(string),
-			email: results[1].(string),
-			p:     results[2].(int),
+			Token: token,
+			User: User{
+				UserName: results[0].(string),
+				Email:    results[1].(string),
+				P:        results[2].(int),
+			},
 		})
 	}
 	// TODO	pipeline批量处理

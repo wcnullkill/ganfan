@@ -13,7 +13,7 @@ import (
 
 // User 用户基础信息
 type User struct {
-	NickName string `json:"nickname" form:"nickname" xml:"nickname" binding:"required"`
+	NickName string `json:"nickname" form:"nickname" xml:"nickname" binding:"-"`
 	//全部转为小写
 	UserName string `json:"usern" form:"usern" xml:"usern" binding:"-"`
 	Email    string `json:"email" form:"email" xml:"email" binding:"required"`
@@ -53,6 +53,8 @@ func login(c *gin.Context) {
 	rdb.SetEX(ctx, rdbUserToken(token), "", time.Duration(expireUserAuth)).Result()
 
 	rdb.HMSet(ctx, rdbToken(token), "user", user.UserName, "email", user.Email, "nickname", user.NickName, "p", defaultP)
+
+	rdb.SAdd(ctx, rdbTokenList(), token)
 
 	// 存储登录信息
 	rdb.SAdd(ctx, rdbLogin(userName), time.Now().Format("2006-01-02 15:04:05")).Result()
@@ -95,7 +97,7 @@ func getUserName(email string) (usern string, err error) {
 
 // makeCookie 根据user的UserName生成Cookie
 func makeUserToken(user *User) string {
-	b := md5.Sum([]byte(user.UserName))
+	b := md5.Sum([]byte(user.UserName + "_ganfan"))
 	return fmt.Sprintf("%x", b)
 }
 
@@ -112,21 +114,24 @@ func checkAuth(c *gin.Context) {
 		}
 	}
 	if len(token) <= 0 || len(user) <= 0 {
-		c.AbortWithStatus(http.StatusUnauthorized)
+		c.String(http.StatusUnauthorized, "token或user无效")
+		c.Abort()
 		return
 	}
 	// 验证token是否有效
-	userToken, err := rdb.Get(ctx, rdbUserToken(token)).Result()
+	_, err := rdb.Get(ctx, rdbUserToken(token)).Result()
 	//无效token
-	if err != nil || len(userToken) == 0 {
-		c.AbortWithStatus(http.StatusUnauthorized)
+	if err != nil {
+		c.String(http.StatusUnauthorized, "token无效")
+		c.Abort()
 		return
 	}
-	userName, err := rdb.HGet(ctx, rdbToken(token), "usern").Result()
+	userName, err := rdb.HGet(ctx, rdbToken(token), "user").Result()
 	//信息被修改
 	// todo  补充错误信息
 	if user != userName {
-		c.AbortWithStatus(http.StatusForbidden)
+		c.String(http.StatusForbidden, "信息被修改")
+		c.Abort()
 		return
 	}
 

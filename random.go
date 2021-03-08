@@ -10,34 +10,29 @@ const (
 )
 
 type node struct {
-	name string
+	member
 	min  int
-	p    int
 	next *node
 }
-type member struct {
-	name  string
-	p     int // 本次中奖概率
-	email string
-}
+
+type member UserToken
 
 // randAsListNode 使用链表，实现抽奖功能，时间复杂度O(n^2)
-func randAsListNode(members []*member) map[string]int {
+func randAsListNode(members []*member) []*member {
 	rand.Seed(time.Now().Unix())
-	list := make(map[string]int, size)
-	head := &node{name: ""}
+	list := make(map[string]*member, size)
+	head := &node{}
 	cur := head
 	length, index := 0, 0
 	for _, m := range members {
 		newNode := &node{
-			name: m.name,
-			min:  index,
-			p:    m.p,
+			member: *m,
+			min:    index,
 		}
 		cur.next = newNode
 		cur = newNode
-		length += newNode.p
-		index = newNode.min + newNode.p
+		length += newNode.member.P
+		index = newNode.min + newNode.member.P
 	}
 	i := 0
 	for i < size {
@@ -48,10 +43,10 @@ func randAsListNode(members []*member) map[string]int {
 
 			if !flag { // 没有命中记录，需要继续判断
 				// 判断是否在区间内
-				if cur.min <= r && cur.min+cur.p > r {
+				if cur.min <= r && cur.min+cur.member.P > r {
 					//命中，移除本节点
-					length -= cur.p
-					list[cur.name] = 1
+					length -= cur.member.P
+					list[cur.member.UserName] = &cur.member
 					pre.next, cur = cur.next, cur.next
 					flag = true
 
@@ -61,13 +56,17 @@ func randAsListNode(members []*member) map[string]int {
 
 			} else { //有命中记录，修改后续节点的min值
 				//修改本节点的min值
-				cur.min = pre.min + pre.p
+				cur.min = pre.min + pre.member.P
 				pre, cur = cur, cur.next
 			}
 		}
 		i++
 	}
-	return list
+	results := make([]*member, len(list))
+	for _, v := range list {
+		results = append(results, v)
+	}
+	return results
 }
 
 //randAsArray 反面例子，太慢了
@@ -76,8 +75,8 @@ func randAsArray(members []*member) map[string]int {
 	rand.Seed(time.Now().Unix())
 	pool := make([]string, 0, len(members)*100)
 	for _, m := range members {
-		for i := 0; i < m.p; i++ {
-			pool = append(pool, m.name)
+		for i := 0; i < m.P; i++ {
+			pool = append(pool, m.UserName)
 		}
 	}
 	i := 0

@@ -11,11 +11,15 @@ import (
 )
 
 const (
-	expireUserAuth int = int(time.Hour * 24 * 30)
+	expireUserAuth time.Duration = time.Hour * 24 * 30 //30天
+	expireCode     time.Duration = time.Hour * 24 * 5  //5天
+	codeMax        int           = 999999
+	codeMin        int           = 100000
 )
 
 var rdb *redis.Client
 var ctx = context.Background()
+var randArray [codeMax - codeMin]int
 
 func init() {
 	rdb = redis.NewClient(&redis.Options{
@@ -23,13 +27,21 @@ func init() {
 		Password: "",
 		DB:       0,
 	})
+	if _, err := rdb.Ping(ctx).Result(); err != nil {
+		panic(err)
+	}
 
 	initLogger()
 
 	// 创建抽奖定时任务
 	c := cron.New()
-	c.AddFunc(jobCronS, excute)
+	c.AddFunc(jobCronS, execute)
 	c.Start()
+
+	//初始化随机数组
+	for i := 0; i < codeMax-codeMin; i++ {
+		randArray[i] = i + codeMin
+	}
 }
 
 func main() {
