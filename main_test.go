@@ -11,8 +11,6 @@ import (
 	"os"
 	"testing"
 	"time"
-
-	"github.com/go-redis/redis/v8"
 )
 
 type testUser struct {
@@ -33,16 +31,6 @@ func init() {
 }
 
 func setup() {
-	rdb = redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
-		Password: "",
-		DB:       0,
-	})
-	if _, err := rdb.Ping(ctx).Result(); err != nil {
-		panic(err)
-	}
-
-	initLogger()
 
 	logger.SetOutput(os.Stderr)
 }

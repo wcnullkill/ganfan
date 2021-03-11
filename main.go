@@ -25,7 +25,7 @@ var randArray [codeMax - codeMin]int
 
 func init() {
 	rdb = redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
+		Addr:     "10.20.12.80:6379",
 		Password: "",
 		DB:       0,
 	})
