@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -42,6 +44,7 @@ func init() {
 	for i := 0; i < codeMax-codeMin; i++ {
 		randArray[i] = i + codeMin
 	}
+	fmt.Println("init over")
 }
 
 func main() {
@@ -59,6 +62,7 @@ func RouterDefault() *gin.Engine {
 
 	v1 := router.Group("/v1")
 	v1.Use(logToFile)
+	v1.Use(cors)
 
 	authGroup := v1.Group("/auth")
 	{
@@ -75,4 +79,25 @@ func RouterDefault() *gin.Engine {
 	}
 
 	return router
+}
+
+func cors(c *gin.Context) {
+	method := c.Request.Method
+	origin := c.Request.Header.Get("Origin") //请求头部
+	if origin != "" {
+
+		c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+		c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+		c.Header("Access-Control-Allow-Headers", "Authorization, Content-Length, X-CSRF-Token, Token,session")
+		c.Header("Access-Control-Expose-Headers", "Content-Length, Access-Control-Allow-Origin, Access-Control-Allow-Headers")
+		c.Header("Access-Control-Max-Age", "172800")
+		c.Header("Access-Control-Allow-Credentials", "true")
+	}
+
+	//允许类型校验
+	if method == "OPTIONS" {
+		c.JSON(http.StatusOK, "ok!")
+	}
+
+	c.Next()
 }

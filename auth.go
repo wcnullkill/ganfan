@@ -114,7 +114,7 @@ func checkAuth(c *gin.Context) {
 		}
 	}
 	if len(token) <= 0 || len(user) <= 0 {
-		c.String(http.StatusUnauthorized, "token或user无效")
+		c.String(http.StatusUnauthorized, "token或user不能未空")
 		c.Abort()
 		return
 	}

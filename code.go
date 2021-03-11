@@ -38,7 +38,6 @@ func submitCode(c *gin.Context) {
 	result, _ := rdb.SAdd(ctx, rdbDailyReservation(date), token.Value).Result()
 	if result != 1 {
 		c.String(http.StatusForbidden, "重复预约")
-		//logger.Info(err)
 		return
 	}
 
