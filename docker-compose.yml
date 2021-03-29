@@ -21,4 +21,6 @@ services:
     privileged: true
     restart: always
     tty: true
-    # command: /bin/bash -c "cd src/ganfan && go build"
+    ports:
+      - 50001:50001
+    command: /bin/bash -c "cd src/ganfan && go build && ./ganfan"
