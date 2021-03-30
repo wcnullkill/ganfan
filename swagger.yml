@@ -1,0 +1,152 @@
+openapi: "3.0.0"
+info:
+  title: "ganfan API"
+  description: "包含登录、登出、预约功能"
+  version: "1.0"
+
+servers:
+  - url: http://10.20.12.80/v1
+    description: main server
+tags:
+- name: auth
+- name: code
+
+paths:
+  /auth:
+    post:
+      tags:
+      - auth
+      summary: 登录或注册
+      description: 传入email，header中返回token和user
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+              example:
+                $ref: '#/components/examples/User'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              examples:
+                success:
+                  $ref: '#/components/examples/User'
+        '400':
+          description: user valid，参数不正确;email error，邮箱格式错误;
+          content:
+            application/json:
+              examples:
+                fail1:
+                  $ref: '#/components/examples/UserError1'
+                fail2:
+                  $ref: '#/components/examples/UserError2'
+                fail3:
+                  $ref: '#/components/examples/UserError3'
+    delete:
+      tags:
+      - auth
+      summary: 登出
+      description: 必须传入header值为token和user，成功将注销token和user。
+      responses:
+        '200':
+          description: OK
+          headers:
+            Set-Cookies:
+              schema:
+                type: string
+                example: token=f692af1e749cfb6a8933b27a5fe18973;user=testuser;Path=/;
+        '401':
+          $ref: '#/components/responses/Auth401Response1'
+            
+        '403':
+          $ref: '#/components/responses/Auth403Response'
+  /code:
+    post:
+      tags:
+      - code
+      summary: 提交当日预约
+      description: 必须传入header值为token和user，每天仅可提交预约一次
+      responses:
+        '200':
+          description: 提交预约成功
+        '401':
+          $ref: '#/components/responses/Auth401Response1'
+        '403':
+          description: >
+            已生成预约结果，本次预约无效;
+            重复预约;
+
+    get:
+      tags:
+      - code
+      summary: 查询当日预约结果
+      description: 必须传入header值为token和user，如果当日预约结果已经生成，则返回对应的code
+      responses:
+        '200':
+          description: 查询预约成功
+        '401':
+          $ref: '#/components/responses/Auth401Response1'
+        '403':
+          $ref: '#/components/responses/Auth403Response'
+        '404':
+          description: 未找到
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        email:
+          type: string
+          pattern: '^([\w-\.]+)@ctrchina\.cn$'
+          description: 邮箱格式必须以@ctrchina.cn结尾
+          example: wangchi@ctrchina.cn
+      required:
+        - email      
+  examples:
+    User:
+      value:
+        email: wangchi@ctrchina.cn
+    UserError1:
+      value:
+        email: wangchi@ctrchina
+    UserError2:
+      value:
+        email: wangchi    
+    UserError3:
+      value:
+        email: null
+  headers:
+    Set-Cookie:
+      schema:
+        type: string
+        example: token=f692af1e749cfb6a8933b27a5fe18973;user=testuser;Path=/;
+
+  responses:
+    Auth401Response1:
+      description: >
+        token或user不能未空;
+        token无效;
+      headers:
+        Set-Cookies:
+          schema:
+            type: string
+            example: token=f692af1e749cfb6a8933b27a5fe18973;user=;Path=/;
+
+    Auth401Response2:
+      description: >
+        token或user不能未空;
+        token无效;
+      headers:
+        Set-Cookies:
+          schema:
+            type: string
+            example: token=asdf;user=testuser;Path=/;
+    Auth403Response:
+      description: 信息被修改
+      headers:
+          Set-Cookies:
+            schema:
+              type: string
+              example: token=f692af1e749cfb6a8933b27a5fe18973;user=asd;Path=/;
